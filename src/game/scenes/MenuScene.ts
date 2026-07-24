@@ -3,6 +3,7 @@ import { TN } from "../theme";
 import { getHighScore } from "../systems/Score";
 import { ACHIEVEMENTS, AchievementTracker } from "../systems/Achievements";
 import { hex, paintAtmosphere } from "../ui/atmosphere";
+import { audio } from "../systems/Audio";
 import { fadeIn, fadeToScene, makePortfolioLink } from "../ui/transitions";
 
 type MenuItem = { label: string; scene?: string; action?: "start" };
@@ -29,6 +30,8 @@ export class MenuScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(TN.bg);
     paintAtmosphere(this, { stars: 56, grid: 36 });
     fadeIn(this);
+    this.input.once("pointerdown", () => audio.unlock());
+    this.input.keyboard?.once("keydown", () => audio.unlock());
     this.cursor = 0;
     this.labels = [];
     this.markers = [];

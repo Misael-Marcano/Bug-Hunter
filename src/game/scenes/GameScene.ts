@@ -1,8 +1,11 @@
 import Phaser from "phaser";
-import { BALANCE, POWERUP_KEYS, type PowerUpKind } from "../balance";
+import { BALANCE, POWERUP_KEYS, POWERUP_WEIGHTS, type PowerUpKind } from "../balance";
 import { TN } from "../theme";
 import { AchievementTracker, type AchievementDef } from "../systems/Achievements";
+import { audio } from "../systems/Audio";
+import { particleCount, shakeDuration, shakeIntensity } from "../systems/Motion";
 import { isMuted, toggleMuted } from "../systems/Settings";
+import { buildShots, weaponLabel, type WeaponMode } from "../systems/Weapons";
 import { hex, makePanel, paintAtmosphere } from "../ui/atmosphere";
 import { fadeIn, fadeToScene } from "../ui/transitions";
 
@@ -31,6 +34,8 @@ export class GameScene extends Phaser.Scene {
   private lastFired = 0;
   private rapidUntil = 0;
   private shieldUntil = 0;
+  private weaponUntil = 0;
+  private weaponMode: WeaponMode = "single";
   private invincibleUntil = 0;
   private spawnTimer?: Phaser.Time.TimerEvent;
   private paused = false;
@@ -45,7 +50,6 @@ export class GameScene extends Phaser.Scene {
   private waveBanner!: Phaser.GameObjects.Text;
   private pauseOverlay!: Phaser.GameObjects.Container;
   private muteBtn!: Phaser.GameObjects.Text;
-  private pauseBtn!: Phaser.GameObjects.Text;
 
   private touchDir = 0;
   private touchFire = false;
@@ -63,6 +67,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(TN.bg);
     paintAtmosphere(this, { stars: 40, grid: 40 });
     fadeIn(this);
+    audio.unlock();
 
     this.score = 0;
     this.lives = BALANCE.startLives;
@@ -70,6 +75,8 @@ export class GameScene extends Phaser.Scene {
     this.bugsKilled = 0;
     this.rapidUntil = 0;
     this.shieldUntil = 0;
+    this.weaponUntil = 0;
+    this.weaponMode = "single";
     this.invincibleUntil = 0;
     this.paused = false;
     this.bossActive = false;
@@ -79,7 +86,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.resume();
     this.time.paused = false;
 
-    this.player = this.physics.add.sprite(width / 2, height - 100, "player");
+    this.player = this.physics.add.sprite(width / 2, height - 110, "player");
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(10);
 
@@ -90,7 +97,7 @@ export class GameScene extends Phaser.Scene {
 
     this.bullets = this.physics.add.group({
       classType: Phaser.Physics.Arcade.Image,
-      maxSize: 36,
+      maxSize: 96,
       runChildUpdate: true,
     });
 
@@ -136,6 +143,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.paused || !this.player.active) return;
+
+    if (time >= this.weaponUntil && this.weaponMode !== "single") {
+      this.weaponMode = "single";
+    }
 
     let vx = 0;
     if (this.cursors.left?.isDown || this.keyA.isDown) vx -= BALANCE.playerSpeed;
@@ -187,7 +198,10 @@ export class GameScene extends Phaser.Scene {
 
     this.bullets.getChildren().forEach((obj) => {
       const b = obj as Phaser.Physics.Arcade.Image;
-      if (b.active && b.y < -20) b.destroy();
+      if (!b.active) return;
+      if (b.y < -30 || b.y > this.scale.height + 30 || b.x < -30 || b.x > this.scale.width + 30) {
+        b.destroy();
+      }
     });
   }
 
@@ -234,7 +248,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(20)
       .setScrollFactor(0);
 
-    this.pauseBtn = this.add
+    const pauseBtn = this.add
       .text(width - 56, 28, "II", {
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: "14px",
@@ -244,7 +258,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(21)
       .setScrollFactor(0)
       .setInteractive({ useHandCursor: true });
-    this.pauseBtn.on("pointerup", () => this.togglePause());
+    pauseBtn.on("pointerup", () => this.togglePause());
 
     this.muteBtn = this.add
       .text(width - 28, 28, this.muted ? "OFF" : "SND", {
@@ -324,6 +338,7 @@ export class GameScene extends Phaser.Scene {
   private applyMute(muted: boolean) {
     this.muted = muted;
     this.muteBtn.setText(muted ? "OFF" : "SND");
+    if (!muted) audio.unlock();
     this.flashToast(muted ? "MUTE ON" : "MUTE OFF");
   }
 
@@ -337,7 +352,13 @@ export class GameScene extends Phaser.Scene {
     const bits: string[] = [];
     if (time < this.rapidUntil) bits.push("HOTFIX");
     if (time < this.shieldUntil) bits.push("STASH");
+    const w = weaponLabel(this.activeWeapon(time));
+    if (w) bits.push(w);
     this.statusText.setText(bits.join("  ·  "));
+  }
+
+  private activeWeapon(time: number): WeaponMode {
+    return time < this.weaponUntil ? this.weaponMode : "single";
   }
 
   private tryFire(time: number) {
@@ -348,15 +369,25 @@ export class GameScene extends Phaser.Scene {
     if (time < this.lastFired + cooldown) return;
     this.lastFired = time;
 
-    const bullet = this.bullets.get(
-      this.player.x,
-      this.player.y - 22,
-      "bullet",
-    ) as Phaser.Physics.Arcade.Image | null;
-    if (!bullet) return;
-    bullet.setActive(true).setVisible(true);
-    bullet.setVelocityY(-BALANCE.bulletSpeed);
-    bullet.setVelocityX(0);
+    const mode = this.activeWeapon(time);
+    const shots = buildShots(mode);
+    let spawned = 0;
+
+    for (const spec of shots) {
+      const bullet = this.bullets.get(
+        this.player.x + spec.offsetX,
+        this.player.y + spec.offsetY,
+        spec.texture,
+      ) as Phaser.Physics.Arcade.Image | null;
+      if (!bullet) continue;
+      bullet.setActive(true).setVisible(true);
+      bullet.setVelocity(spec.vx, spec.vy);
+      bullet.setData("pierce", spec.pierce);
+      bullet.setData("hitBugs", new Set<Phaser.GameObjects.GameObject>());
+      spawned += 1;
+    }
+
+    if (spawned > 0) audio.shoot();
   }
 
   private isBossWave() {
@@ -455,13 +486,25 @@ export class GameScene extends Phaser.Scene {
     boss.setData("boss", true);
     boss.setVelocityY(BALANCE.bossSpeed);
     this.bossActive = true;
-    this.cameras.main.shake(BALANCE.shakeBoss.duration, BALANCE.shakeBoss.intensity);
+    this.camShake(BALANCE.shakeBoss.duration, BALANCE.shakeBoss.intensity);
   }
 
   private hitBug: Phaser.Types.Physics.Arcade.ArcadePhysicsCallback = (bulletObj, bugObj) => {
     const bullet = bulletObj as Phaser.Physics.Arcade.Image;
     const bug = bugObj as Phaser.Physics.Arcade.Image;
-    bullet.destroy();
+
+    const hitBugs = bullet.getData("hitBugs") as Set<Phaser.GameObjects.GameObject> | undefined;
+    if (hitBugs?.has(bug)) return;
+    hitBugs?.add(bug);
+
+    let pierce = (bullet.getData("pierce") as number) || 0;
+    if (pierce > 0) {
+      pierce -= 1;
+      bullet.setData("pierce", pierce);
+      if (pierce <= 0) bullet.destroy();
+    } else {
+      bullet.destroy();
+    }
 
     const hp = (bug.getData("hp") as number) - 1;
     if (hp > 0) {
@@ -470,6 +513,7 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(80, () => {
         if (bug.active) bug.clearTint();
       });
+      audio.hit();
       return;
     }
 
@@ -487,10 +531,11 @@ export class GameScene extends Phaser.Scene {
 
     bug.destroy();
     this.burst(bx, by, tint);
-    this.cameras.main.shake(
+    this.camShake(
       isBoss ? BALANCE.shakeBoss.duration : BALANCE.shakeKill.duration,
       isBoss ? BALANCE.shakeBoss.intensity : BALANCE.shakeKill.intensity,
     );
+    audio.hit();
 
     this.bugsRemaining = Math.max(0, this.bugsRemaining - 1);
     this.score += points;
@@ -501,7 +546,7 @@ export class GameScene extends Phaser.Scene {
       this.bossActive = false;
       this.showAchievement(this.achievements.tryUnlock("merge_resolved"));
       this.flashToast("MERGE RESOLVED");
-      this.spawnPowerup(bx, by, "stash");
+      this.spawnPowerup(bx, by, "pierce");
     }
 
     if (this.bugsKilled === 1) {
@@ -529,6 +574,7 @@ export class GameScene extends Phaser.Scene {
       this.invincibleUntil = this.time.now + 600;
       this.burst(this.player.x, this.player.y, TN.cyan);
       this.flashToast("STASH BROKEN");
+      audio.hurt();
       if (!isBoss) {
         bug.destroy();
         this.bugsRemaining = Math.max(0, this.bugsRemaining - 1);
@@ -552,6 +598,7 @@ export class GameScene extends Phaser.Scene {
       this.invincibleUntil = this.time.now + 600;
       this.burst(this.player.x, this.player.y, TN.cyan);
       this.flashToast("STASH BROKEN");
+      audio.hurt();
       return;
     }
 
@@ -560,13 +607,15 @@ export class GameScene extends Phaser.Scene {
     this.invincibleUntil = this.time.now + BALANCE.invincibleMs;
 
     this.cameras.main.flash(140, 247, 118, 142, false);
-    this.cameras.main.shake(BALANCE.shakeHit.duration, BALANCE.shakeHit.intensity);
+    this.camShake(BALANCE.shakeHit.duration, BALANCE.shakeHit.intensity);
     this.player.setTint(TN.red);
     this.burst(this.player.x, this.player.y, TN.red);
+    audio.hurt();
 
     if (this.lives <= 0) {
       this.spawnTimer?.remove(false);
-      this.time.delayedCall(280, () => {
+      audio.gameOver();
+      this.time.delayedCall(320, () => {
         fadeToScene(this, "GameOver", { score: this.score, wave: this.wave });
       });
     }
@@ -581,10 +630,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pickPowerup(): PowerUpKind {
-    const roll = Phaser.Math.FloatBetween(0, 1);
-    if (roll < 0.4) return "hotfix";
-    if (roll < 0.75) return "stash";
-    return "coffee";
+    const total = POWERUP_WEIGHTS.reduce((s, w) => s + w.weight, 0);
+    let roll = Phaser.Math.FloatBetween(0, total);
+    for (const entry of POWERUP_WEIGHTS) {
+      roll -= entry.weight;
+      if (roll <= 0) return entry.kind;
+    }
+    return "hotfix";
   }
 
   private spawnPowerup(x: number, y: number, kind?: PowerUpKind) {
@@ -598,18 +650,25 @@ export class GameScene extends Phaser.Scene {
     const orb = orbObj as Phaser.Physics.Arcade.Image;
     const kind = (orb.getData("kind") as PowerUpKind) || "hotfix";
     orb.destroy();
+    audio.powerup();
 
     if (kind === "hotfix") {
       this.rapidUntil = this.time.now + BALANCE.rapidFireDurationMs;
       this.showAchievement(this.achievements.tryUnlock("hotfix_used"));
       this.flashToast("HOTFIX  ·  rapid fire");
       this.burst(this.player.x, this.player.y - 10, TN.green);
-    } else if (kind === "stash") {
+      return;
+    }
+
+    if (kind === "stash") {
       this.shieldUntil = this.time.now + BALANCE.shieldDurationMs;
       this.showAchievement(this.achievements.tryUnlock("stash_used"));
       this.flashToast("GIT STASH  ·  shield");
       this.burst(this.player.x, this.player.y - 10, TN.cyan);
-    } else {
+      return;
+    }
+
+    if (kind === "coffee") {
       if (this.lives < BALANCE.maxLives) {
         this.lives += 1;
         this.livesText.setText(this.livesLabel());
@@ -621,16 +680,40 @@ export class GameScene extends Phaser.Scene {
       }
       this.showAchievement(this.achievements.tryUnlock("coffee_used"));
       this.burst(this.player.x, this.player.y - 10, TN.yellow);
+      return;
+    }
+
+    // Weapon power-ups
+    if (kind === "twin" || kind === "spread" || kind === "pierce") {
+      this.weaponMode = kind;
+      this.weaponUntil = this.time.now + BALANCE.weaponDurationMs;
+      this.showAchievement(this.achievements.tryUnlock("arsenal"));
+      const labels: Record<"twin" | "spread" | "pierce", string> = {
+        twin: "TWIN SHOT  ·  dual fire",
+        spread: "SPREAD  ·  3-way fan",
+        pierce: "PIERCE  ·  through bugs",
+      };
+      this.flashToast(labels[kind]);
+      this.burst(
+        this.player.x,
+        this.player.y - 10,
+        kind === "twin" ? TN.blue : kind === "spread" ? TN.magenta : 0xff9e64,
+      );
     }
   };
 
+  private camShake(duration: number, intensity: number) {
+    this.cameras.main.shake(shakeDuration(duration), shakeIntensity(intensity));
+  }
+
   private burst(x: number, y: number, tint: number) {
     this.sparks.setParticleTint(tint);
-    this.sparks.emitParticleAt(x, y, 10);
+    this.sparks.emitParticleAt(x, y, particleCount(10));
   }
 
   private showAchievement(def: AchievementDef | null) {
     if (!def) return;
+    audio.achievement();
     this.flashToast(`★  ${def.title}`);
   }
 

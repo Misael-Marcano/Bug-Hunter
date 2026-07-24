@@ -39,8 +39,8 @@ export class AchievementsScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
 
-    const startY = 96;
-    const rowH = 52;
+    const startY = 88;
+    const rowH = 48;
 
     ACHIEVEMENTS.forEach((def, i) => {
       const unlocked = this.tracker.has(def.id);

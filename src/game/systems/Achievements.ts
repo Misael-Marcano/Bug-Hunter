@@ -8,7 +8,8 @@ export type AchievementId =
   | "survivor"
   | "stash_used"
   | "coffee_used"
-  | "merge_resolved";
+  | "merge_resolved"
+  | "arsenal";
 
 export type AchievementDef = {
   id: AchievementId;
@@ -23,6 +24,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "hotfix_used", title: "PATCH APPLIED", hint: "Usa un hotfix" },
   { id: "stash_used", title: "SAFE STASH", hint: "Activa git stash (escudo)" },
   { id: "coffee_used", title: "CAFFEINE FIX", hint: "Toma un coffee (+vida)" },
+  { id: "arsenal", title: "FULL ARSENAL", hint: "Usa twin, spread o pierce" },
   { id: "merge_resolved", title: "MERGE RESOLVED", hint: "Derrota un merge conflict" },
   { id: "survivor", title: "SYSTEM STABLE", hint: "Termina con ≥50 pts" },
 ];

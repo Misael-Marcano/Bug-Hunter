@@ -54,26 +54,23 @@ export class PreloadScene extends Phaser.Scene {
     ship.generateTexture("player", 36, 40);
     ship.destroy();
 
-    const bullet = this.make.graphics({ x: 0, y: 0 });
-    bullet.fillStyle(TN.green, 1);
-    bullet.fillRoundedRect(0, 0, 5, 14, 2);
-    bullet.fillStyle(0xffffff, 0.7);
-    bullet.fillRoundedRect(1, 1, 3, 6, 1);
-    bullet.generateTexture("bullet", 5, 14);
-    bullet.destroy();
+    this.drawBullet("bullet", TN.green, 5, 14);
+    this.drawBullet("bullet-twin", TN.cyan, 4, 12);
+    this.drawBullet("bullet-spread", TN.magenta, 5, 12);
+    this.drawPierceBullet();
 
     this.drawBug("bug", TN.red);
     this.drawBug("bug-yellow", TN.yellow);
     this.drawBug("bug-magenta", TN.magenta);
     this.drawBoss();
 
-    this.drawOrb("powerup-hotfix", TN.green, () => {
-      // minus bar
-    }, "H");
-    this.drawOrb("powerup-stash", TN.cyan, undefined, "S");
-    this.drawOrb("powerup-coffee", TN.yellow, undefined, "C");
-    // keep legacy key alias for safety
-    this.drawOrb("powerup", TN.green, undefined, "H");
+    this.drawOrb("powerup-hotfix", TN.green, "H");
+    this.drawOrb("powerup-stash", TN.cyan, "S");
+    this.drawOrb("powerup-coffee", TN.yellow, "C");
+    this.drawOrb("powerup-twin", TN.blue, "T");
+    this.drawOrb("powerup-spread", TN.magenta, "W");
+    this.drawOrb("powerup-pierce", 0xff9e64, "P");
+    this.drawOrb("powerup", TN.green, "H");
 
     const spark = this.make.graphics({ x: 0, y: 0 });
     spark.fillStyle(0xffffff, 1);
@@ -97,22 +94,48 @@ export class PreloadScene extends Phaser.Scene {
     shield.destroy();
   }
 
-  private drawOrb(key: string, color: number, _extra?: () => void, letter = "?") {
+  private drawBullet(key: string, color: number, w: number, h: number) {
+    const bullet = this.make.graphics({ x: 0, y: 0 });
+    bullet.fillStyle(color, 1);
+    bullet.fillRoundedRect(0, 0, w, h, 2);
+    bullet.fillStyle(0xffffff, 0.7);
+    bullet.fillRoundedRect(1, 1, Math.max(1, w - 2), Math.floor(h * 0.4), 1);
+    bullet.generateTexture(key, w, h);
+    bullet.destroy();
+  }
+
+  private drawPierceBullet() {
+    const g = this.make.graphics({ x: 0, y: 0 });
+    g.fillStyle(0xff9e64, 1);
+    g.fillRoundedRect(2, 0, 4, 20, 2);
+    g.fillStyle(0xffffff, 0.85);
+    g.fillRoundedRect(3, 0, 2, 8, 1);
+    g.generateTexture("bullet-pierce", 8, 20);
+    g.destroy();
+  }
+
+  private drawOrb(key: string, color: number, letter = "?") {
     const orb = this.make.graphics({ x: 0, y: 0 });
     orb.fillStyle(color, 0.25);
     orb.fillCircle(12, 12, 12);
     orb.fillStyle(color, 1);
     orb.fillCircle(12, 12, 8);
     orb.fillStyle(TN.bg, 1);
-    // letter via small rects — use texture + scene text instead; keep glyph as bar/dot
     if (letter === "H") {
       orb.fillRect(7, 10, 10, 4);
     } else if (letter === "S") {
       orb.fillRect(8, 7, 8, 3);
       orb.fillRect(8, 14, 8, 3);
       orb.fillRect(8, 7, 3, 10);
+    } else if (letter === "T") {
+      orb.fillRect(7, 7, 10, 3);
+      orb.fillRect(10, 7, 3, 10);
+    } else if (letter === "W") {
+      orb.fillTriangle(12, 6, 7, 16, 17, 16);
+    } else if (letter === "P") {
+      orb.fillRect(10, 6, 3, 12);
+      orb.fillCircle(11.5, 9, 3);
     } else {
-      // coffee cup
       orb.fillRect(8, 8, 8, 9);
       orb.fillRect(16, 10, 3, 5);
     }

@@ -8,11 +8,13 @@ const ROWS: [string, string][] = [
   ["SPACE  or  ↑", "Fire"],
   ["P  /  ESC", "Pause"],
   ["M", "Mute toggle"],
-  ["Touch left pad", "Steer"],
-  ["Touch right pad", "Hold to fire"],
-  ["Green orb", "HOTFIX — rapid fire"],
-  ["Cyan orb", "GIT STASH — shield"],
-  ["Yellow orb", "COFFEE — +1 life"],
+  ["Touch pads", "Steer / hold fire"],
+  ["Green · HOTFIX", "Rapid fire"],
+  ["Cyan · STASH", "Shield"],
+  ["Yellow · COFFEE", "+1 life"],
+  ["Blue · TWIN", "Dual shot"],
+  ["Magenta · SPREAD", "3-way fan"],
+  ["Orange · PIERCE", "Through bugs"],
   ["Every 5 waves", "MERGE CONFLICT boss"],
 ];
 
@@ -28,7 +30,7 @@ export class ControlsScene extends Phaser.Scene {
     fadeIn(this);
 
     this.add
-      .text(width / 2, 40, "CONTROLS", {
+      .text(width / 2, 36, "CONTROLS", {
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: "26px",
         color: hex(TN.cyan),
@@ -37,20 +39,20 @@ export class ControlsScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .rectangle(width / 2, height * 0.48, width - 40, 480, TN.panel, 0.55)
+      .rectangle(width / 2, height * 0.48, width - 40, height * 0.64, TN.panel, 0.55)
       .setStrokeStyle(1, TN.border, 0.8);
 
     ROWS.forEach(([key, desc], i) => {
-      const y = 92 + i * 38;
+      const y = 78 + i * 42;
       this.add
-        .text(40, y, key, {
+        .text(36, y, key, {
           fontFamily: '"JetBrains Mono", monospace',
           fontSize: "12px",
           color: hex(TN.green),
         })
         .setOrigin(0, 0.5);
       this.add
-        .text(width - 40, y, desc, {
+        .text(width - 36, y, desc, {
           fontFamily: '"JetBrains Mono", monospace',
           fontSize: "12px",
           color: hex(TN.text),

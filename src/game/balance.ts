@@ -1,7 +1,7 @@
 /** Constantes de jugabilidad — ajustar aquí para tunear la partida. */
 export const BALANCE = {
   playerSpeed: 300,
-  bulletSpeed: 460,
+  bulletSpeed: 480,
   fireCooldownMs: 200,
   rapidFireMultiplier: 0.42,
 
@@ -30,20 +30,41 @@ export const BALANCE = {
   bossZigzagAmp: 120,
   bossPoints: 120,
 
-  powerupChance: 0.14,
+  powerupChance: 0.16,
   powerupFallSpeed: 85,
   rapidFireDurationMs: 5000,
   shieldDurationMs: 6000,
+  weaponDurationMs: 8000,
+  pierceHits: 3,
 
   shakeHit: { duration: 160, intensity: 0.006 },
   shakeKill: { duration: 70, intensity: 0.003 },
   shakeBoss: { duration: 220, intensity: 0.01 },
 } as const;
 
-export type PowerUpKind = "hotfix" | "stash" | "coffee";
+/** Power-ups de soporte + armas. */
+export type PowerUpKind =
+  | "hotfix"
+  | "stash"
+  | "coffee"
+  | "twin"
+  | "spread"
+  | "pierce";
 
 export const POWERUP_KEYS: Record<PowerUpKind, string> = {
   hotfix: "powerup-hotfix",
   stash: "powerup-stash",
   coffee: "powerup-coffee",
+  twin: "powerup-twin",
+  spread: "powerup-spread",
+  pierce: "powerup-pierce",
 };
+
+export const POWERUP_WEIGHTS: { kind: PowerUpKind; weight: number }[] = [
+  { kind: "hotfix", weight: 22 },
+  { kind: "stash", weight: 18 },
+  { kind: "coffee", weight: 14 },
+  { kind: "twin", weight: 16 },
+  { kind: "spread", weight: 16 },
+  { kind: "pierce", weight: 14 },
+];
