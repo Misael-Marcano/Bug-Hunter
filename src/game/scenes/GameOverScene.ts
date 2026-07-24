@@ -1,7 +1,9 @@
 import Phaser from "phaser";
-import { PORTFOLIO_URL, TN } from "../theme";
+import { TN } from "../theme";
 import { getHighScore, setHighScore } from "../systems/Score";
 import { AchievementTracker } from "../systems/Achievements";
+import { hex, paintAtmosphere } from "../ui/atmosphere";
+import { fadeIn, fadeToScene, makePortfolioLink } from "../ui/transitions";
 
 type GameOverData = {
   score: number;
@@ -24,88 +26,109 @@ export class GameOverScene extends Phaser.Scene {
     if (score >= 50) tracker.tryUnlock("survivor");
 
     this.cameras.main.setBackgroundColor(TN.bg);
+    paintAtmosphere(this, { stars: 28, grid: 40 });
+    fadeIn(this);
+    this.cameras.main.flash(220, 247, 118, 142, false);
 
     this.add
-      .text(width / 2, height * 0.22, "SYSTEM FAILURE", {
-        fontFamily: "monospace",
-        fontSize: "32px",
-        color: "#f7768e",
+      .rectangle(width / 2, height * 0.26, width - 48, 100, TN.panel, 0.6)
+      .setStrokeStyle(1, TN.red, 0.65);
+
+    const title = this.add
+      .text(width / 2, height * 0.26 - 16, "SYSTEM FAILURE", {
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: "30px",
+        color: hex(TN.red),
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+
+    this.tweens.add({
+      targets: title,
+      alpha: 0.55,
+      duration: 500,
+      yoyo: true,
+      repeat: 3,
+    });
+
+    this.add
+      .text(width / 2, height * 0.26 + 22, "deploy aborted  //  bugs win", {
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: "12px",
+        color: hex(TN.muted),
+      })
+      .setOrigin(0.5);
+
+    this.add
+      .rectangle(width / 2, height * 0.48, width - 72, 130, TN.panel2, 0.75)
+      .setStrokeStyle(1, TN.border, 0.8);
+
+    this.add
+      .text(width / 2, height * 0.48 - 36, `SCORE  ${score}`, {
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: "24px",
+        color: hex(TN.text),
         fontStyle: "bold",
       })
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height * 0.22 + 40, "deploy aborted // bugs win", {
-        fontFamily: "monospace",
-        fontSize: "13px",
-        color: "#7982a9",
-      })
-      .setOrigin(0.5);
-
-    this.add
-      .text(width / 2, height * 0.42, `SCORE  ${score}`, {
-        fontFamily: "monospace",
-        fontSize: "22px",
-        color: "#c0caf5",
-      })
-      .setOrigin(0.5);
-
-    this.add
-      .text(width / 2, height * 0.42 + 32, `WAVE  ${wave}`, {
-        fontFamily: "monospace",
-        fontSize: "16px",
-        color: "#7dcfff",
+      .text(width / 2, height * 0.48, `WAVE  ${wave}`, {
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: "15px",
+        color: hex(TN.cyan),
       })
       .setOrigin(0.5);
 
     this.add
       .text(
         width / 2,
-        height * 0.42 + 64,
-        isNew ? `NEW HI-SCORE  ${high}` : `HI-SCORE  ${getHighScore()}`,
+        height * 0.48 + 36,
+        isNew ? `★  NEW HI-SCORE  ${high}` : `HI-SCORE  ${getHighScore()}`,
         {
-          fontFamily: "monospace",
-          fontSize: "16px",
-          color: isNew ? "#9ece6a" : "#e0af68",
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: "15px",
+          color: isNew ? hex(TN.green) : hex(TN.yellow),
         },
       )
       .setOrigin(0.5);
 
     const retry = this.add
-      .text(width / 2, height * 0.68, "[ R ]  RETRY", {
-        fontFamily: "monospace",
-        fontSize: "18px",
-        color: "#9ece6a",
-      })
-      .setOrigin(0.5)
+      .rectangle(width / 2, height * 0.68, 200, 44, TN.panel, 0.95)
+      .setStrokeStyle(1, TN.green, 0.8)
       .setInteractive({ useHandCursor: true });
+
+    const retryLabel = this.add
+      .text(width / 2, height * 0.68, "[ R ]  RETRY", {
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: "16px",
+        color: hex(TN.green),
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
 
     const menu = this.add
-      .text(width / 2, height * 0.68 + 36, "[ M ]  MENU", {
-        fontFamily: "monospace",
-        fontSize: "16px",
-        color: "#7aa2f7",
+      .text(width / 2, height * 0.68 + 42, "[ M ]  MENU", {
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: "15px",
+        color: hex(TN.blue),
+        fontStyle: "bold",
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
 
-    const portfolio = this.add
-      .text(width / 2, height - 36, "← back to portfolio", {
-        fontFamily: "monospace",
-        fontSize: "13px",
-        color: "#7982a9",
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    const goRetry = () => fadeToScene(this, "Game");
+    const goMenu = () => fadeToScene(this, "Menu");
 
-    retry.on("pointerup", () => this.scene.start("Game"));
-    menu.on("pointerup", () => this.scene.start("Menu"));
-    portfolio.on("pointerup", () => {
-      window.open(PORTFOLIO_URL, "_blank", "noopener,noreferrer");
-    });
+    retry.on("pointerup", goRetry);
+    retryLabel.setInteractive({ useHandCursor: true });
+    retryLabel.on("pointerup", goRetry);
+    menu.on("pointerup", goMenu);
 
-    this.input.keyboard?.once("keydown-R", () => this.scene.start("Game"));
-    this.input.keyboard?.once("keydown-M", () => this.scene.start("Menu"));
-    this.input.keyboard?.once("keydown-ENTER", () => this.scene.start("Game"));
+    this.input.keyboard?.once("keydown-R", goRetry);
+    this.input.keyboard?.once("keydown-M", goMenu);
+    this.input.keyboard?.once("keydown-ENTER", goRetry);
+
+    makePortfolioLink(this, height - 36);
   }
 }

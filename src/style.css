@@ -4,6 +4,7 @@
   --tn-text: #c0caf5;
   --tn-cyan: #7dcfff;
   --tn-green: #9ece6a;
+  --tn-border: #414868;
   color-scheme: dark;
 }
 
@@ -34,17 +35,21 @@ body {
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(125, 207, 255, 0.12), transparent 70%),
-    var(--tn-bg);
+    radial-gradient(ellipse 70% 45% at 50% -5%, rgba(125, 207, 255, 0.16), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(187, 154, 247, 0.08), transparent 55%),
+    linear-gradient(180deg, #16161e 0%, var(--tn-bg) 45%, #13131a 100%);
 }
 
 #game-root canvas {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  border: 1px solid #414868;
-  border-radius: 8px;
-  box-shadow: 0 0 40px -12px rgba(125, 207, 255, 0.35);
+  max-width: min(100vw - 16px, 480px);
+  max-height: min(100vh - 16px, 720px);
+  border: 1px solid var(--tn-border);
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px rgba(122, 162, 247, 0.08),
+    0 18px 50px -18px rgba(0, 0, 0, 0.75),
+    0 0 48px -16px rgba(125, 207, 255, 0.28);
 }
 
 @media (prefers-reduced-motion: reduce) {

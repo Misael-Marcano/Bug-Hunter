@@ -3,6 +3,9 @@ import { TN } from "./theme";
 import { BootScene } from "./scenes/BootScene";
 import { PreloadScene } from "./scenes/PreloadScene";
 import { MenuScene } from "./scenes/MenuScene";
+import { AchievementsScene } from "./scenes/AchievementsScene";
+import { ControlsScene } from "./scenes/ControlsScene";
+import { CreditsScene } from "./scenes/CreditsScene";
 import { GameScene } from "./scenes/GameScene";
 import { GameOverScene } from "./scenes/GameOverScene";
 
@@ -23,7 +26,16 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, PreloadScene, MenuScene, GameScene, GameOverScene],
+  scene: [
+    BootScene,
+    PreloadScene,
+    MenuScene,
+    AchievementsScene,
+    ControlsScene,
+    CreditsScene,
+    GameScene,
+    GameOverScene,
+  ],
   input: {
     activePointers: 3,
   },

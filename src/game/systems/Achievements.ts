@@ -5,7 +5,10 @@ export type AchievementId =
   | "score_100"
   | "wave_3"
   | "hotfix_used"
-  | "survivor";
+  | "survivor"
+  | "stash_used"
+  | "coffee_used"
+  | "merge_resolved";
 
 export type AchievementDef = {
   id: AchievementId;
@@ -17,8 +20,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "first_bug", title: "FIRST BLOOD", hint: "Caza tu primer bug" },
   { id: "score_100", title: "HOTFIX HERO", hint: "Llega a 100 puntos" },
   { id: "wave_3", title: "NIGHT SHIFT", hint: "Sobrevive 3 olas" },
-  { id: "hotfix_used", title: "PATCH APPLIED", hint: "Usa un power-up" },
-  { id: "survivor", title: "SYSTEM STABLE", hint: "Termina una partida con ≥50 pts" },
+  { id: "hotfix_used", title: "PATCH APPLIED", hint: "Usa un hotfix" },
+  { id: "stash_used", title: "SAFE STASH", hint: "Activa git stash (escudo)" },
+  { id: "coffee_used", title: "CAFFEINE FIX", hint: "Toma un coffee (+vida)" },
+  { id: "merge_resolved", title: "MERGE RESOLVED", hint: "Derrota un merge conflict" },
+  { id: "survivor", title: "SYSTEM STABLE", hint: "Termina con ≥50 pts" },
 ];
 
 const loadUnlocked = (): Set<AchievementId> => {
