@@ -18,7 +18,7 @@ Arcade web Tokyo Night — caza bugs, aplica hotfixes y resuelve merge conflicts
 | Space / ↑ | Disparar |
 | P / Esc | Pausar |
 | M | Mute |
-| Touch | Stick izq. + FIRE der. |
+| Touch (móvil) | Arrastra para mover · AUTO FIRE (botón AUTO/MAN en HUD) |
 
 ## Power-ups
 

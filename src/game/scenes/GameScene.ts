@@ -53,7 +53,11 @@ export class GameScene extends Phaser.Scene {
 
   private touchDir = 0;
   private touchFire = false;
-  private movePadCenter = { x: 0, y: 0 };
+  private touchTargetX: number | null = null;
+  private touchMovePointerId: number | null = null;
+  private touchFirePointerId: number | null = null;
+  private autoFire = false;
+  private touchUi = false;
 
   private achievements = new AchievementTracker();
   private bugsKilled = 0;
@@ -83,6 +87,11 @@ export class GameScene extends Phaser.Scene {
     this.muted = isMuted();
     this.touchDir = 0;
     this.touchFire = false;
+    this.touchTargetX = null;
+    this.touchMovePointerId = null;
+    this.touchFirePointerId = null;
+    this.touchUi = this.detectTouchUi();
+    this.autoFire = this.touchUi;
     this.physics.resume();
     this.time.paused = false;
 
@@ -151,7 +160,21 @@ export class GameScene extends Phaser.Scene {
     let vx = 0;
     if (this.cursors.left?.isDown || this.keyA.isDown) vx -= BALANCE.playerSpeed;
     if (this.cursors.right?.isDown || this.keyD.isDown) vx += BALANCE.playerSpeed;
-    if (this.touchDir !== 0) vx = this.touchDir * BALANCE.playerSpeed;
+
+    if (this.touchTargetX !== null) {
+      // Sigue el dedo (móvil): más preciso que left/right digital
+      const target = Phaser.Math.Clamp(this.touchTargetX, 24, this.scale.width - 24);
+      const dx = target - this.player.x;
+      if (Math.abs(dx) < 2) {
+        this.player.x = target;
+        vx = 0;
+      } else {
+        vx = Phaser.Math.Clamp(dx * 9, -BALANCE.playerSpeed * 1.35, BALANCE.playerSpeed * 1.35);
+      }
+    } else if (this.touchDir !== 0) {
+      vx = this.touchDir * BALANCE.playerSpeed;
+    }
+
     this.player.setVelocityX(vx);
 
     this.shieldRing.setPosition(this.player.x, this.player.y);
@@ -159,7 +182,10 @@ export class GameScene extends Phaser.Scene {
     this.shieldRing.setAlpha(shielded ? 0.75 + 0.25 * Math.sin(time * 0.015) : 0);
 
     const wantsFire =
-      this.keySpace.isDown || this.cursors.up?.isDown || this.touchFire;
+      this.keySpace.isDown ||
+      this.cursors.up?.isDown ||
+      this.touchFire ||
+      this.autoFire;
     if (wantsFire) this.tryFire(time);
 
     if (time < this.invincibleUntil && !shielded) {
@@ -350,11 +376,22 @@ export class GameScene extends Phaser.Scene {
 
   private refreshStatus(time: number) {
     const bits: string[] = [];
+    if (this.autoFire) bits.push("AUTO");
     if (time < this.rapidUntil) bits.push("HOTFIX");
     if (time < this.shieldUntil) bits.push("STASH");
     const w = weaponLabel(this.activeWeapon(time));
     if (w) bits.push(w);
     this.statusText.setText(bits.join("  ·  "));
+  }
+
+  private detectTouchUi() {
+    const coarse =
+      typeof window !== "undefined" &&
+      !!window.matchMedia?.("(pointer: coarse)").matches;
+    const touchPoints =
+      typeof navigator !== "undefined" && (navigator.maxTouchPoints ?? 0) > 0;
+    const phaserTouch = this.sys.game.device.input.touch;
+    return coarse || touchPoints || phaserTouch;
   }
 
   private activeWeapon(time: number): WeaponMode {
@@ -731,88 +768,150 @@ export class GameScene extends Phaser.Scene {
 
   private createTouchControls() {
     const { width, height } = this.scale;
-    const padY = height - 56;
-    const leftX = 56;
-    const rightX = width - 56;
-    this.movePadCenter = { x: leftX, y: padY };
 
-    const movePad = this.add
-      .image(leftX, padY, "touch-pad")
-      .setAlpha(0.55)
-      .setDepth(15)
-      .setScrollFactor(0)
-      .setInteractive({ draggable: false });
-
-    const knob = this.add
-      .circle(leftX, padY, 14, TN.cyan, 0.35)
-      .setStrokeStyle(1, TN.cyan, 0.7)
+    // Hint inferior (no tapa el playfield)
+    const hint = this.add
+      .text(
+        width / 2,
+        height - 28,
+        this.autoFire ? "DRAG to move  ·  AUTO FIRE" : "LEFT drag  ·  RIGHT hold fire",
+        {
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: "11px",
+          color: hex(TN.muted),
+          backgroundColor: "#1a1b26aa",
+          padding: { x: 10, y: 5 },
+        },
+      )
+      .setOrigin(0.5)
       .setDepth(16)
-      .setScrollFactor(0);
-
-    const firePad = this.add
-      .image(rightX, padY, "touch-pad")
-      .setAlpha(0.55)
-      .setDepth(15)
       .setScrollFactor(0)
-      .setInteractive();
+      .setAlpha(this.touchUi ? 0.9 : 0.35);
 
-    this.add
-      .text(rightX, padY, "FIRE", {
+    if (this.autoFire) {
+      this.time.delayedCall(2800, () => {
+        this.tweens.add({ targets: hint, alpha: 0.25, duration: 400 });
+      });
+    }
+
+    // Botón AUTO: toggle disparo automático (útil en móvil)
+    const autoBtn = this.add
+      .text(width - 88, 28, this.autoFire ? "AUTO" : "MAN", {
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: "11px",
+        color: this.autoFire ? hex(TN.green) : hex(TN.muted),
+      })
+      .setOrigin(0.5)
+      .setDepth(21)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+
+    autoBtn.on("pointerup", () => {
+      this.autoFire = !this.autoFire;
+      autoBtn.setText(this.autoFire ? "AUTO" : "MAN");
+      autoBtn.setColor(this.autoFire ? hex(TN.green) : hex(TN.muted));
+      hint.setText(
+        this.autoFire ? "DRAG to move  ·  AUTO FIRE" : "DRAG left  ·  HOLD right to fire",
+      );
+      hint.setAlpha(0.9);
+      this.flashToast(this.autoFire ? "AUTO FIRE ON" : "MANUAL FIRE");
+    });
+
+    // Stick visual solo como feedback (no bloquea)
+    const padY = height - 72;
+    const knob = this.add
+      .circle(width * 0.22, padY, 16, TN.cyan, 0.22)
+      .setStrokeStyle(1, TN.cyan, 0.55)
+      .setDepth(15)
+      .setScrollFactor(0)
+      .setAlpha(this.touchUi ? 0.7 : 0.25);
+
+    const fireGlow = this.add
+      .circle(width * 0.78, padY, 22, TN.green, 0.18)
+      .setStrokeStyle(1, TN.green, 0.5)
+      .setDepth(15)
+      .setScrollFactor(0)
+      .setAlpha(this.autoFire ? 0.15 : 0.55);
+
+    this.add
+      .text(width * 0.78, padY, this.autoFire ? "AUTO" : "FIRE", {
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: "10px",
         color: hex(TN.green),
       })
       .setOrigin(0.5)
       .setDepth(16)
       .setScrollFactor(0)
-      .setAlpha(0.85);
+      .setAlpha(this.autoFire ? 0.35 : 0.8);
 
-    const updateMove = (pointer: Phaser.Input.Pointer) => {
-      const dx = Phaser.Math.Clamp(pointer.x - this.movePadCenter.x, -36, 36);
-      knob.setPosition(this.movePadCenter.x + dx, this.movePadCenter.y);
-      if (Math.abs(dx) < 8) this.touchDir = 0;
-      else this.touchDir = Math.sign(dx);
+    const inHudChrome = (p: Phaser.Input.Pointer) => p.y < 52;
+
+    const beginMove = (p: Phaser.Input.Pointer) => {
+      this.touchMovePointerId = p.id;
+      this.touchTargetX = p.worldX;
+      knob.setPosition(
+        Phaser.Math.Clamp(p.worldX, 40, width * 0.55),
+        padY,
+      );
+      knob.setAlpha(0.95);
     };
 
-    const resetMove = () => {
+    const endMove = (p: Phaser.Input.Pointer) => {
+      if (this.touchMovePointerId !== p.id) return;
+      this.touchMovePointerId = null;
+      this.touchTargetX = null;
       this.touchDir = 0;
-      knob.setPosition(this.movePadCenter.x, this.movePadCenter.y);
+      knob.setAlpha(this.touchUi ? 0.45 : 0.25);
     };
 
-    movePad.on("pointerdown", (p: Phaser.Input.Pointer) => updateMove(p));
-    movePad.on("pointermove", (p: Phaser.Input.Pointer) => {
-      if (p.isDown) updateMove(p);
-    });
-    movePad.on("pointerup", resetMove);
-    movePad.on("pointerout", resetMove);
-
-    const moveZone = this.add
-      .zone(width * 0.22, height - 70, width * 0.44, 140)
-      .setInteractive()
-      .setDepth(14)
-      .setScrollFactor(0);
-    moveZone.on("pointerdown", (p: Phaser.Input.Pointer) => updateMove(p));
-    moveZone.on("pointermove", (p: Phaser.Input.Pointer) => {
-      if (p.isDown) updateMove(p);
-    });
-    moveZone.on("pointerup", resetMove);
-    moveZone.on("pointerout", resetMove);
-
-    const setFire = (on: boolean) => {
-      this.touchFire = on;
-      firePad.setAlpha(on ? 0.85 : 0.55);
+    const beginFire = (p: Phaser.Input.Pointer) => {
+      if (this.autoFire) return;
+      this.touchFirePointerId = p.id;
+      this.touchFire = true;
+      fireGlow.setAlpha(0.9);
     };
-    firePad.on("pointerdown", () => setFire(true));
-    firePad.on("pointerup", () => setFire(false));
-    firePad.on("pointerout", () => setFire(false));
 
-    const fireZone = this.add
-      .zone(width * 0.78, height - 70, width * 0.44, 140)
-      .setInteractive()
-      .setDepth(14)
-      .setScrollFactor(0);
-    fireZone.on("pointerdown", () => setFire(true));
-    fireZone.on("pointerup", () => setFire(false));
-    fireZone.on("pointerout", () => setFire(false));
+    const endFire = (p: Phaser.Input.Pointer) => {
+      if (this.touchFirePointerId !== null && this.touchFirePointerId !== p.id) return;
+      this.touchFirePointerId = null;
+      this.touchFire = false;
+      fireGlow.setAlpha(this.autoFire ? 0.15 : 0.55);
+    };
+
+    // Input global: más fiable en móvil que zones + pointerout
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      if (this.paused || inHudChrome(p)) return;
+      audio.unlock();
+
+      if (this.autoFire) {
+        // Un pulgar: cualquier drag mueve; el disparo es automático
+        beginMove(p);
+        return;
+      }
+
+      if (p.worldX < width * 0.55) beginMove(p);
+      else beginFire(p);
+    });
+
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      if (!p.isDown || this.paused) return;
+      if (this.touchMovePointerId === p.id) {
+        this.touchTargetX = p.worldX;
+        knob.setPosition(
+          Phaser.Math.Clamp(p.worldX, 40, width * 0.7),
+          padY,
+        );
+      }
+    });
+
+    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      endMove(p);
+      endFire(p);
+    });
+
+    this.input.on("pointerupoutside", (p: Phaser.Input.Pointer) => {
+      endMove(p);
+      endFire(p);
+    });
   }
 }
